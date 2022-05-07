@@ -1,24 +1,101 @@
 import pandas as pd
 import numpy as np
 import random
-k = int(input("enter the k value: "))
+import matplotlib.pyplot as plt
+import math
+
+option = int(
+    input(("Select an option: \n 1 : training percentage \n 2 : 'k' partions \n")))
+
+
+def getTrainingPercentage():
+    return float(
+        input("Enter the training percentage value like '0.7': "))
+
+
+def getKPartitions():
+    return int(input("enter the k value: "))
+
+
+def invalid_op():
+    raise Exception("Invalid operation")
+
+
+def getInputMethod(chosen_training_method=1):
+    ops = {
+        1: getTrainingPercentage,
+        2: getKPartitions
+    }
+    chosen_function = ops.get(chosen_training_method, invalid_op)
+    return chosen_function()
+
+
+user_value = getInputMethod(option)
+
+
+variables_number = 4
+intermediate_neurons = 10
+hidden_neurons = 8
+output_neurons = 3
+
 # iris --> dataframe
 iris = pd.read_csv("data/iris.csv", sep=';')
-
-# save id and class
-iris_classes = iris.iloc[:, [0] + [-1]]
-
 
 # randomize data
 iris = iris.sample(frac=1)
 
-training_perc = float(
-    input("Enter the training percentage value like '0.7': "))
+# change string variables to numbers call one hot variables
+one_hot = pd.get_dummies(
+    iris['class'])
+iris = iris.drop('class', axis=1)
+iris = iris.join(one_hot)
 
-# separate into train and test data
-# random state is a seed value
-train = iris.sample(frac=training_perc, random_state=200)
-test = iris.drop(train.index)
+# drop unnecessary column
+iris = iris.drop('ID', axis=1)
+
+
+# x columns
+subSetIris = iris.iloc[:, 0:variables_number]
+
+X, Y = subSetIris, iris.iloc[:, variables_number:]
+
+training_index = math.ceil(len(subSetIris) * (user_value))
+
+X_train, X_test, y_train, y_test = X[:training_index], X[training_index:
+                                                         ], Y[:training_index], Y[training_index:]
+
+X_train, X_test, y_train, y_test = X_train.to_numpy(
+), X_test.to_numpy(), y_train.to_numpy(), y_test.to_numpy()
+
+y_train.shape = ((len(y_train), 3))
+y_test.shape = ((len(y_test), 3))
+
+'''
+TODO REFACTOR
+# cross validation
+def getPartition(iris, k, n):
+    test = iris.iloc[int(n/k):int((n+1)/k), :]
+    train = iris.iloc[int(n+1/k):int((n+1)/k), :]
+
+    # x columns
+    subSetIris = iris.iloc[:, 0:variables_number]
+
+    X, Y = subSetIris, iris.iloc[:, variables_number:]
+
+    training_index = math.ceil(len(subSetIris) * (user_value))
+
+    X_train, X_test, y_train, y_test = X[:training_index], X[training_index:
+                                                             ], Y[:training_index], Y[training_index:]
+
+    X_train, X_test, y_train, y_test = X_train.to_numpy(
+    ), X_test.to_numpy(), y_train.to_numpy(), y_test.to_numpy()
+
+    y_train.shape = ((len(y_train), 3))
+    y_test.shape = ((len(y_test), 3))
+
+    print(par)
+    return par, n
+'''
 
 '''sigmoid function'''
 
@@ -29,95 +106,61 @@ def nonlin(p, deriv=False):
     return 1/(1+np.exp(-p))
 
 
-np.random.seed(1)
+def getInitialWeight(variables_number, intermediate_neurons, hidden_neurons, output_neurons):
+
+    np.random.seed(1)
+    syn0 = 2*np.random.random((variables_number, intermediate_neurons)) - 1
+
+    syn1 = 2*np.random.random((intermediate_neurons, hidden_neurons)) - 1
+
+    syn2 = 2*np.random.random((hidden_neurons, output_neurons)) - 1
+
+    return syn0, syn1, syn2
 
 
-numVar = 5
-CantidadNeuroInter = 10
-CantidadNeuroH = 8
-numSalidas = 1
+def getResultNN(variables_number, intermediate_neurons, hidden_neurons, output_neurons):
+    eta = 0.1
+    iteration_values = []
+    error_values = []
+    epochs = 80000
 
-# pesos
-syn0 = 2*np.random.random((numVar, CantidadNeuroInter)) - 1
+    syn0, syn1, syn2 = getInitialWeight(variables_number, intermediate_neurons,
+                                        hidden_neurons, output_neurons)
 
-syn1 = 2*np.random.random((CantidadNeuroInter, CantidadNeuroH)) - 1
+    for iter in range(epochs):
+        # Forward Propagation between layer 0 to layer 1 and layer 2 (end)
+        iteration_values.append(iter)
 
-syn2 = 2*np.random.random((CantidadNeuroH, numSalidas)) - 1
+        l0 = X_train
+        l1 = nonlin(np.dot(l0, syn0))
+        l2 = nonlin(np.dot(l1, syn1))
+        l3 = nonlin(np.dot(l2, syn2))
 
+        l3_error = y_train-l3
+        l3_delta = l3_error * nonlin(l3, deriv=True)*eta
 
-eta = 0.1
-iteraVec = []
-vecerror = []
+        l2_error = l3_delta.dot(syn2.T)
+        l2_delta = l2_error * nonlin(l2, deriv=True)*eta
 
-for iter in range(80000):
-    # Forward Propagation between layer 0 to leyer 1 and leyer 2 (end)
-    iteraVec.append(iter)
+        l1_error = l2_delta.dot(syn1.T)
 
-    l0 = X_train
-    l1 = nonlin(np.dot(l0, syn0))
-    l2 = nonlin(np.dot(l1, syn1))
-    l3 = nonlin(np.dot(l2, syn2))
+        l1_delta = l1_error * nonlin(l1, deriv=True)*eta
 
-    l3_error = y_train-l3
-    l3_delta = l3_error * nonlin(l3, deriv=True)*eta
+        mse = (np.square(l3_error)).mean()
+        error_values.append(mse)
 
-    l2_error = l3_delta.dot(syn2.T)
-    l2_delta = l2_error * nonlin(l2, deriv=True)*eta
+        # update weights
+        syn2 += l2.T.dot(l3_delta)
+        syn1 += l1.T.dot(l2_delta)
+        syn0 += l0.T.dot(l1_delta)
 
-    l1_error = l2_delta.dot(syn1.T)
-
-    l1_delta = l1_error * nonlin(l1, deriv=True)*eta
-
-    mse = (np.square(l3_error)).mean()
-    vecerror.append(mse)
-
-    # update weights
-    syn2 += l2.T.dot(l3_delta)
-    syn1 += l1.T.dot(l2_delta)
-    syn0 += l0.T.dot(l1_delta)
+    return iteration_values, error_values
 
 
-def get_class(id_):
-    """ based on an id returns a class """
-    ids = iris_classes.loc[iris_classes['ID'] == id_]
-    return ids["class"].values[0]
+iteration_values, error_values = getResultNN(variables_number, intermediate_neurons,
+                                             hidden_neurons, output_neurons)
 
-
-def validate_prediction(test_class, class_prediction):
-    """ validates if a predicted class and the REAL class are EQUAL or NOT"""
-    return test_class == class_prediction
-
-
-'''TODO refactoring'''
-
-
-def get_prediction(test, trains, k, oneItem=False):
-    # element --> [[[id_test, id_train, distance]], [...], [...]]
-    dmatrix = get_nearest_neighbors(test, train, k)
-    count = 0
-    predictions = {}
-    for arr in dmatrix:
-        class_prediction = get_clasification(arr)
-        predictions[arr[0][0]] = class_prediction
-        if validate_prediction(get_class(arr[0][0]), class_prediction):
-            count += 1
-
-    if not oneItem:
-        return (f"accuracy: {round(count / len(test), 5) * 100}% 😊", f"prediction: {predictions}")
-    return f"prediction: {predictions}"
-
-
-'''    
-print ('*********************************')
-print ('Output After Training:')
-print('Salida red:','\n',l2)
-print ('Error:' + str(np.mean(np.abs(l2_error))),'\n')
-print ('pesos: ')
-print (syn0,'\n')
-print (syn1,'\n')
-'''
-# Con formateo
-# print "%5d%10s" %(1,'a')
+# print(iteration_values, error_values)
 plt.title('MSE red neuronal')
-plt.plot(iteraVec, vecerror)
+plt.plot(iteration_values, error_values)
 plt.show()
