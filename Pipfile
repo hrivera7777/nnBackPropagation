@@ -7,6 +7,8 @@ name = "pypi"
 numpy = "*"
 pandas = "*"
 matplotlib = "*"
+sklearn = "*"
+pep8 = "*"
 
 [dev-packages]
 autopep8 = "*"
